@@ -1,0 +1,5 @@
+Q_learning Feature Transform
+Monte-Carlo Prediction
+SARSA
+Probabilistic-Deterministic_policy_evaluation
+Temporal Difference
