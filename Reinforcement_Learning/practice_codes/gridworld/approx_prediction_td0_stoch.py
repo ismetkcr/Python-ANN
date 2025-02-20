@@ -1,0 +1,138 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Aug 31 17:57:27 2024
+
+@author: ismt
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from grid_world import standard_grid, negative_grid
+from iterative_policy_evaluation_deterministic import print_policy, print_values
+from sklearn.kernel_approximation import Nystroem, RBFSampler
+
+GAMMA = 0.9
+ALPHA = 0.1
+ALL_POSSIBLE_ACTIONS = ('U', 'D', 'L', 'R')
+
+def epsilon_greedy(greedy, s, eps = 0.1):
+  p = np.random.random()
+  if p < (1 - eps):
+    return greedy[s]
+  else:
+    return np.random.choice(ALL_POSSIBLE_ACTIONS)
+
+
+def gather_samples(grid, n_episodes = 10_000):
+  samples = []
+  for _ in range(n_episodes):
+    s = grid.reset()
+    samples.append(s)
+    while not grid.game_over():
+      a = np.random.choice(ALL_POSSIBLE_ACTIONS)
+      r = grid.move(a)
+      s = grid.current_state()
+      samples.append(s)
+
+  return samples
+
+
+class Model:
+  def __init__(self, grid):
+    #fit the featurizer to data
+    samples = gather_samples(grid)
+    #self.featurizer = Nystroem()
+    self.featurizer = RBFSampler()
+    self.featurizer.fit(samples)
+    dims = self.featurizer.n_components
+
+    #init linear model weights
+    self.w = np.zeros(dims)
+
+  def predict(self, s):
+    x = self.featurizer.transform([s])[0]
+    return x @ self.w
+
+  def grad(self, s):
+    x = self.featurizer.transform([s])[0]
+    return x
+
+
+if __name__ == '__main__':
+  grid = standard_grid()
+  print("rewards:")
+  print_values(grid.rewards, grid)
+
+  # state -> action
+  greedy_policy = {
+    (2, 0): 'U',
+    (1, 0): 'U',
+    (0, 0): 'R',
+    (0, 1): 'R',
+    (0, 2): 'R',
+    (1, 2): 'R',
+    (2, 1): 'R',
+    (2, 2): 'R',
+    (2, 3): 'U',
+  }
+
+model = Model(grid)
+mse_per_episode = []
+
+#repeat until convergence
+
+n_episodes = 10000
+for it in range(n_episodes):
+  if (it + 1) % 100 == 0:
+    print("it,", it + 1)
+
+  s = grid.reset()
+  Vs = model.predict(s)
+  n_steps = 0
+  episode_err = 0
+  while not grid.game_over():
+    a = epsilon_greedy(greedy_policy, s)
+    r = grid.move(a)
+    s2 = grid.current_state()
+
+    #get the target
+    if grid.is_terminal(s2):
+      target = r
+    else:
+      Vs2 = model.predict(s2)
+      target = r + GAMMA * Vs2
+    #update model
+    g = model.grad(s)
+    err = target - Vs
+    model.w += ALPHA * err * g
+
+    #acc error
+    n_steps += 1
+    episode_err += err * err
+
+    #update state
+    s = s2
+    Vs = Vs2
+
+  mse = episode_err/n_steps
+  mse_per_episode.append(mse)
+
+plt.plot(mse_per_episode)
+plt.title("mse per episode")
+plt.show()
+
+#obtain predicted values
+V = {}
+states = grid.all_states()
+for s in states:
+  if s in grid.actions:
+    V[s] = model.predict(s)
+  else:
+    V[s] = 0
+
+print("values:")
+print_values(V, grid)
+print("policy:")
+print_policy(greedy_policy, grid)
+
+
