@@ -1,7 +1,0 @@
-KnightOnlineEnv_class : Environment to agent interact step - reward
-env_wrappers: method read from article (will shared)
-agent : Reinforcement Deep Q-Learning Agent
-get_window, game_controller: classes to interact with environment
-trained agent not shared here public. This codes only for educational purposes.
-
-for agents : contact issmetkocer@gmail.com
